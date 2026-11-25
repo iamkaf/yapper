@@ -1,0 +1,11 @@
+name: MSVC environment
+description: Put the latest Visual Studio's x64 compiler on PATH, as a Developer Command Prompt would.
+runs:
+  using: composite
+  steps:
+    - shell: pwsh
+      run: |
+        $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * `
+          -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+        cmd /c "`"$vs\VC\Auxiliary\Build\vcvars64.bat`" >nul && set" |
+          Where-Object { $_ -match '^\w+=' } | Add-Content $env:GITHUB_ENV

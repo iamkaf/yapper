@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # The image pins the compilers: GCC 13 and Clang 18 on Ubuntu 24.04.
+    env:
+      CC: clang
+    steps:
+      - uses: actions/checkout@v7
+      # flite and espeak-ng are not installed, so the phrase compiler's test
+      # skips; the committed phrase table is what the renders use.
+      - name: Build with warnings as errors
+        run: |
+          gcc -std=c11 -O2 -Wall -Wextra -Werror cli.c yapper.c -o yapper
+          clang -std=c11 -O2 -Wall -Wextra -Werror cli.c yapper.c -o yapper
+      - name: Test
+        run: python3 test.py
+      - name: Parity
+        run: python3 tests/parity.py
