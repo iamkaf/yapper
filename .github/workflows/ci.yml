@@ -24,8 +24,14 @@ jobs:
       CC: clang
     steps:
       - uses: actions/checkout@v7
-      # flite and espeak-ng are not installed, so the phrase compiler's test
-      # skips; the committed phrase table is what the renders use.
+      # flite and espeak-ng let the tests hold yapper compile to compile.py.
+      # The image's package lists usually suffice; refreshing them can take
+      # minutes on a slow mirror, so that happens only if they are stale.
+      - name: Install flite and espeak-ng
+        run: |
+          sudo rm -f /var/lib/man-db/auto-update
+          sudo apt-get install -y --no-install-recommends flite espeak-ng ||
+            { sudo apt-get update && sudo apt-get install -y --no-install-recommends flite espeak-ng; }
       - name: Build with warnings as errors
         run: |
           gcc -std=c11 -O2 -Wall -Wextra -Werror cli.c yapper.c compile.c pitch.c -o yapper -lm

@@ -28,7 +28,7 @@ CC=clang python3 test.py
 python3 tests/parity.py
 ```
 
-`test.py` builds what it needs, so there is nothing to build first. The README's [Run the tests](README.md#run-the-tests) section lists what it checks. CI doesn't install flite or espeak-ng, so there the compiler's test skips. If you change `compile.c`, `compile.py` or `pitch.c`, run `test.py` with both installed. `tests/parity.py` skips everywhere but on a machine that has the code Yapper was taken from.
+`test.py` builds what it needs, so there is nothing to build first. The README's [Run the tests](README.md#run-the-tests) section lists what it checks. CI installs flite and espeak-ng, so it runs the compiler's test too. If you change `compile.c`, `compile.py` or `pitch.c`, run `test.py` with both installed. `tests/parity.py` skips everywhere but on a machine that has the code Yapper was taken from.
 
 A pull request needs CI to pass.
 
