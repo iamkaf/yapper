@@ -160,7 +160,7 @@ const yap_voice yap_woman = {
 };
 const yap_voice yap_child = {
     .pitch = 270, .range = 120, .pace = 86, .tract = 176, .oq = 200, .tilt = 56,
-    .breath = 70, .flutter = 16, .volume = 150, .b1 = 200, .soft = 160,
+    .breath = 70, .flutter = 16, .volume = 130, .b1 = 200, .soft = 160,
     .style = YAP_WOMAN | YAP_SMOOTH, .pause = 100,
 };
 const yap_voice yap_elder = {
@@ -175,7 +175,7 @@ const yap_voice yap_giant = {
 };
 const yap_voice yap_robot = {
     .pitch = 110, .range = 0, .pace = 100, .tract = 124, .oq = 96, .tilt = 120,
-    .volume = 150,
+    .volume = 196,
 };
 
 /* ------------------------------------------------------------------ the radio

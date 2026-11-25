@@ -1,19 +1,38 @@
+/* bench.c: how much faster than real time each voice speaks.
+
+   cc -O2 tests/bench.c yapper.c -o bench && ./bench */
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
-#include "yapper.h"
+
+#include "../yapper.h"
+
+#define ROUNDS 50
+
 static yapper y;
-int main(int argc, char **argv)
+static int16_t buf[4096];
+
+int main(void)
 {
-    const char *t = "Why would anyone build a whole speech synthesizer that fits in a few kilobytes? Because it's fun, and because small things travel well. Shall we listen to it again?";
-    static int16_t buf[4096];
-    double best = 1e9; unsigned long n = 0;
-    for (int r = 0; r < 5; r++) {
-        struct timespec a, b; clock_gettime(CLOCK_MONOTONIC, &a);
-        yap_reset(&y); yap_say(&y, &yap_man, t, strlen(t)); n = 0;
-        while (yap_busy(&y)) { yap_render(&y, buf, 4096); n += 4096; }
-        clock_gettime(CLOCK_MONOTONIC, &b);
-        double s = b.tv_sec - a.tv_sec + (b.tv_nsec - a.tv_nsec) / 1e9; if (s < best) best = s;
+    static const struct { const char *name; const yap_voice *v; } voices[] = {
+        { "man", &yap_man }, { "woman", &yap_woman }, { "child", &yap_child },
+        { "elder", &yap_elder }, { "giant", &yap_giant }, { "robot", &yap_robot },
+    };
+    const char *text = "Why would anyone build a whole speech synthesizer that fits in a few kilobytes? "
+                       "Because it's fun, and because small things travel well. Shall we listen to it again?";
+    for (size_t i = 0; i < sizeof voices / sizeof voices[0]; i++) {
+        unsigned long n = 0;
+        clock_t start = clock();
+        double took;
+        for (int round = 0; round < ROUNDS; round++) {
+            yap_reset(&y);
+            yap_say(&y, voices[i].v, text, (uint32_t)strlen(text));
+            for (n = 0; yap_busy(&y); n += 4096)
+                yap_render(&y, buf, 4096);
+        }
+        took = (double)(clock() - start) / CLOCKS_PER_SEC / ROUNDS;
+        printf("%-6s %5.2f s of speech in %6.2f ms: %5.0f times real time\n", voices[i].name, n / 44100.0,
+               took * 1000, n / 44100.0 / took);
     }
-    printf("%.2f s of speech in %.4f s: %.0fx real time\n", n / 44100.0, best, n / 44100.0 / best);
+    return 0;
 }
