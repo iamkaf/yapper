@@ -39,16 +39,16 @@ jobs:
           sudo rm -f /var/lib/man-db/auto-update
           sudo apt-get install -y --no-install-recommends musl-tools ||
             { sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools; }
-          musl-gcc -std=c11 -O2 -static -s cli.c yapper.c -o yapper
+          musl-gcc -std=c11 -O2 -static -s cli.c yapper.c compile.c pitch.c -o yapper -lm
       - name: Build
         if: runner.os == 'macOS'
-        run: cc -std=c11 -O2 -arch arm64 -arch x86_64 -mmacosx-version-min=11.0 cli.c yapper.c -o yapper
+        run: cc -std=c11 -O2 -arch arm64 -arch x86_64 -mmacosx-version-min=11.0 cli.c yapper.c compile.c pitch.c -o yapper
       # PowerShell, since Git Bash's own link.exe would shadow MSVC's. /MT
       # links the C runtime in, so no Visual C++ redistributable is needed.
       - name: Build
         if: runner.os == 'Windows'
         shell: pwsh
-        run: cl /nologo /O2 /MT cli.c yapper.c /Fe:yapper.exe
+        run: cl /nologo /O2 /MT cli.c yapper.c compile.c pitch.c /Fe:yapper.exe
       # The samples must be the ones blessed in tests/blessed.txt.
       - name: Smoke test
         env:
@@ -70,7 +70,7 @@ jobs:
         run: |
           dir="yapper-${GITHUB_REF_NAME}-${{ matrix.name }}"
           mkdir "$dir"
-          cp ${{ matrix.bin }} LICENSE README.md FORMAT.md compile.py pitch.c "$dir"/
+          cp ${{ matrix.bin }} LICENSE README.md FORMAT.md "$dir"/
           if [ "${{ runner.os }}" = Windows ]; then 7z a -tzip "$dir.zip" "$dir"; else tar czf "$dir.tar.gz" "$dir"; fi
       - uses: actions/upload-artifact@v7
         with:

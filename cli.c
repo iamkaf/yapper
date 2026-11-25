@@ -1,5 +1,6 @@
 /* cli.c: the yapper command. Says a text into a WAV file, and prints when
-   each part of the text is reached and when the mouth opens. */
+   each part of the text is reached and when the mouth opens. Its compile
+   command, which makes phrase tables, is compile.c. */
 
 #include <stddef.h>
 #include <stdio.h>
@@ -7,6 +8,8 @@
 #include <string.h>
 
 #include "yapper.h"
+
+int compile_command(int argc, char **argv); /* compile.c */
 
 static const struct { const char *name; const yap_voice *v; } presets[] = {
     { "man", &yap_man },     { "woman", &yap_woman }, { "child", &yap_child },
@@ -43,6 +46,7 @@ static int usage(void)
             "usage: yapper say TEXT [-o OUT.wav] [--voice NAME] [--set KEY=VALUE]...\n"
             "                       [--phrases TABLE.yph] [--cues]\n"
             "       yapper voices\n"
+            "       yapper compile LINES.txt -o TABLE.yph\n"
             "TEXT - reads the text from standard input.\n");
     return 2;
 }
@@ -100,6 +104,8 @@ int main(int argc, char **argv)
 
     if (argc >= 2 && !strcmp(argv[1], "voices"))
         return voices();
+    if (argc >= 2 && !strcmp(argv[1], "compile"))
+        return compile_command(argc - 2, argv + 2);
     if (argc < 3 || strcmp(argv[1], "say"))
         return usage();
     for (int i = 2; i < argc; i++) {

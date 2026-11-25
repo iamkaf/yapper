@@ -4,7 +4,7 @@ Bug reports, fixes and new voices are welcome. Open an [issue](https://github.co
 
 ## What belongs here
 
-Yapper is the runtime in `yapper.h` and `yapper.c`, the `yapper` command in `cli.c`, and the phrase compiler in `compile.py` with `pitch.c`. The runtime stays small and freestanding: integer math only, no C library, no allocation, and all state in the caller's `yapper`. A change that needs floating point, a heap or a header beyond `<stdint.h>` in the runtime doesn't fit. The compiler never ships with the runtime, so it can use whatever helps.
+Yapper is the runtime in `yapper.h` and `yapper.c`, the `yapper` command in `cli.c`, and the command's phrase compiler in `compile.c` and `pitch.c`, with its Python reference, `compile.py`. The runtime stays small and freestanding: integer math only, no C library, no allocation, and all state in the caller's `yapper`. A change that needs floating point, a heap or a header beyond `<stdint.h>` in the runtime doesn't fit. The compiler never ships with the runtime, so it can use whatever helps. A change to how a table is compiled goes into both `compile.c` and `compile.py`, and `test.py` checks that they still write the same bytes.
 
 Version 1 of the phrase table is frozen ([FORMAT.md](FORMAT.md)). The runtime must keep reading every table it reads now, the same way. A change to the layout needs a new tag.
 
@@ -22,13 +22,13 @@ sudo dnf install clang gcc python3 flite espeak-ng      # Fedora
 CI runs exactly these, on Ubuntu 24.04 with GCC 13 and Clang 18:
 
 ```sh
-gcc -std=c11 -O2 -Wall -Wextra -Werror cli.c yapper.c -o yapper
-clang -std=c11 -O2 -Wall -Wextra -Werror cli.c yapper.c -o yapper
+gcc -std=c11 -O2 -Wall -Wextra -Werror cli.c yapper.c compile.c pitch.c -o yapper -lm
+clang -std=c11 -O2 -Wall -Wextra -Werror cli.c yapper.c compile.c pitch.c -o yapper -lm
 CC=clang python3 test.py
 python3 tests/parity.py
 ```
 
-`test.py` builds what it needs, so there is nothing to build first. The README's [Run the tests](README.md#run-the-tests) section lists what it checks. CI doesn't install flite or espeak-ng, so there the compiler's test skips. If you change `compile.py` or `pitch.c`, run `test.py` with both installed. `tests/parity.py` skips everywhere but on a machine that has the code Yapper was taken from.
+`test.py` builds what it needs, so there is nothing to build first. The README's [Run the tests](README.md#run-the-tests) section lists what it checks. CI doesn't install flite or espeak-ng, so there the compiler's test skips. If you change `compile.c`, `compile.py` or `pitch.c`, run `test.py` with both installed. `tests/parity.py` skips everywhere but on a machine that has the code Yapper was taken from.
 
 A pull request needs CI to pass.
 

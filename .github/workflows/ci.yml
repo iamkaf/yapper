@@ -28,8 +28,8 @@ jobs:
       # skips; the committed phrase table is what the renders use.
       - name: Build with warnings as errors
         run: |
-          gcc -std=c11 -O2 -Wall -Wextra -Werror cli.c yapper.c -o yapper
-          clang -std=c11 -O2 -Wall -Wextra -Werror cli.c yapper.c -o yapper
+          gcc -std=c11 -O2 -Wall -Wextra -Werror cli.c yapper.c compile.c pitch.c -o yapper -lm
+          clang -std=c11 -O2 -Wall -Wextra -Werror cli.c yapper.c compile.c pitch.c -o yapper -lm
       - name: Test
         run: python3 test.py
       - name: Parity

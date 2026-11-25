@@ -1,6 +1,6 @@
 # Yapper phrase table, version 1
 
-A phrase table tells the runtime how to say phrases better than its letter rules can. `compile.py` writes one from a text file of lines, and `yap_phrases` hands one to the runtime. All integers are little-endian.
+A phrase table tells the runtime how to say phrases better than its letter rules can. `yapper compile` writes one from a text file of lines, and `yap_phrases` hands one to the runtime. All integers are little-endian.
 
 ## Layout
 

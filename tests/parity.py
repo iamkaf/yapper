@@ -13,7 +13,9 @@ and record), with "row" on a line compiled with more than a record holds.
 compile.py must make the same record for every phrase of the lines without
 one, leaving out lines the original said louder (a word in capitals, or
 "!!") or that hold an "@". The original took at most 640 bytes of a line,
-where Yapper takes 1024, so this part compiles as it did."""
+where Yapper takes 1024, so this part compiles as it did. `yapper compile`
+must then write the same table as compile.py from those lines of them that
+are 640 bytes or fewer, which both read alike."""
 import json
 import os
 import re
@@ -148,10 +150,10 @@ def main():
     print(f"parity: {checked} renders identical to the original")
     phrases = os.environ.get("YAPPER_ORIGIN_PHRASES")
     if phrases:
-        compiled(Path(phrases))
+        compiled(Path(phrases), yapper, tmp)
 
 
-def compiled(path):
+def compiled(path, yapper, tmp):
     import compile as yc
     yc.TEXT = 640                       # the original took 640 bytes of a line, at most
     lines = [json.loads(x) for x in path.read_text().splitlines() if x.strip()]
@@ -159,7 +161,8 @@ def compiled(path):
     lines = [e for e in lines if "row" not in e and "@" not in e["t"] and "!!" not in e["t"]
              and not any(len(w.replace("'", "")) >= 2 and w.isupper() for w in louder.findall(e["t"]))]
     same, long = 0, 0
-    for e, got in zip(lines, yc.compile_each([e["t"] for e in lines])):
+    each = yc.compile_each([e["t"] for e in lines])
+    for e, got in zip(lines, each):
         if any(got.get(int(h, 16), (0, 0))[1] != bytes.fromhex(rec)[1:] for h, (_, rec) in e["c"].items()):
             # The original read pitch from the first 20 s of a line alone.
             took = float(yc.run(["flite", "-voice", "slt", "-psdur", "-t", yc.blank(e["t"]).decode(errors="replace"),
@@ -171,6 +174,18 @@ def compiled(path):
     if long:
         print(f"parity: {long} lines longer than 20 s, past which the original found no pitch, left out")
     print(f"parity: {same} phrases of {len(lines)} lines compiled as the original compiled them")
+    # The C compiler reads a file, so only lines a file holds as they are.
+    short = [(e["t"], got) for e, got in zip(lines, each) if len(e["t"].encode()) <= 640 and e["t"] == e["t"].strip()
+             and not e["t"].startswith("#") and "\n" not in e["t"] and "\r" not in e["t"]]
+    merged = {}
+    for _, got in short:
+        for h, (words, rec) in got.items():
+            merged.setdefault(h, rec)
+    src, out = tmp / "lines.txt", tmp / "lines.yph"
+    src.write_text("".join(t + "\n" for t, _ in short), encoding="utf-8")
+    common.run([yapper, "compile", src, "-o", out])
+    assert out.read_bytes() == yc.table(merged), "yapper compile and compile.py differ"
+    print(f"parity: yapper compile wrote compile.py's table, {len(merged)} phrases, from {len(short)} of those lines")
 
 
 def first_difference(a, b):

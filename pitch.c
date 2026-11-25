@@ -1,12 +1,15 @@
-/* pitch.c: the pitch of a recording, every 5 ms, for compile.py. It never
-   ships with the runtime.
+/* pitch.c: the pitch of a recording, every 5 ms, for the phrase compiler.
+   It never ships with the runtime.
+
+   pitch_track() reads IN.wav, 16-bit PCM at any rate, with its phone
+   labels, which say where a sound is voiceless or silent, and gives the
+   pitch in Hz every 5 ms, 0 where there is no voice. compile.c calls it.
+   Built with -DPITCH_MAIN, this file is also the program compile.py runs:
 
    pitch IN.wav [IN.lab]
 
-   IN.wav is 16-bit PCM at any rate; IN.lab its phone labels (a "#" line,
-   then "end-time 125 phone" a line), which say where a sound is voiceless
-   or silent. Every 5 ms it writes "t f0": the frame's centre in seconds
-   and the pitch in Hz, 0 where there is no voice.
+   IN.lab is a "#" line, then "end-time 125 phone" a line. Every 5 ms it
+   writes "t f0": the frame's centre in seconds and the pitch.
 
    Pitch by YIN (de Cheveigne and Kawahara 2002), 120 to 420 Hz. A voiced
    sound where YIN finds no period takes the pitch of the nearest frames
@@ -18,9 +21,12 @@
 
 #define HOP 0.005
 
+double *pitch_track(const char *wav, int nlab, const double *ends, const char *const *phones, int *frames);
+
 static double *x;               /* the recording, -1 to 1 */
 static int nx, sr;
-static struct lab { double end; char ph[8]; } *lb;
+static const double *lend;      /* the labels: each sound's end and name */
+static const char *const *lph;
 static int nlb;
 
 static void fail(const char *what)
@@ -68,37 +74,11 @@ static void readwav(const char *path)
     fclose(f);
 }
 
-static void readlab(const char *path)
-{
-    FILE *f = fopen(path, "r");
-    char line[128];
-    int body = 0, cap = 0;
-    if (!f)
-        fail("cannot read the labels");
-    while (fgets(line, sizeof line, f)) {
-        double t;
-        int k;
-        char ph[16];
-        if (line[0] == '#') {
-            body = 1;
-            continue;
-        }
-        if (body && sscanf(line, "%lf %d %15s", &t, &k, ph) == 3) {
-            if (nlb == cap && !(lb = realloc(lb, sizeof *lb * (cap = cap ? cap * 2 : 64))))
-                fail("out of memory");
-            lb[nlb].end = t;
-            snprintf(lb[nlb].ph, sizeof lb[nlb].ph, "%s", ph);
-            nlb++;
-        }
-    }
-    fclose(f);
-}
-
 static const char *phone_at(double t)
 {
     for (int i = 0; i < nlb; i++)
-        if (t < lb[i].end)
-            return lb[i].ph;
+        if (t < lend[i])
+            return lph[i];
     return "pau";
 }
 
@@ -111,6 +91,11 @@ static int voiceless(const char *p)
     return 0;
 }
 
+/* YIN's pitch at sample c, or 0. Each lag's difference is summed in the
+   same order as one lag at a time, but LAGS of them run side by side. The
+   search takes the first dip below 0.3, so it stops there: the lags past
+   the one after it cannot change the answer. */
+#define LAGS 16
 static double yin(int c, double *d)
 {
     int w = (int)(0.030 * sr), lo = sr / 420, hi = sr / 120, s0 = c - w / 2;
@@ -118,20 +103,29 @@ static double yin(int c, double *d)
     if (s0 < 0 || c + w / 2 + hi >= nx)
         return 0;
     d[0] = 1;
-    for (int tau = 1; tau <= hi; tau++) {
-        double e = 0;
-        for (int i = 0; i < w; i++) {
-            double q = x[s0 + i] - x[s0 + i + tau];
-            e += q * q;
+    for (int tau = 1; tau <= hi;) {
+        int m = hi - tau + 1 >= LAGS ? LAGS : 1;
+        double e[LAGS] = { 0 };
+        for (int i = 0; i < w; i++)
+            if (m == LAGS)
+                for (int k = 0; k < LAGS; k++) {
+                    double q = x[s0 + i] - x[s0 + i + tau + k];
+                    e[k] += q * q;
+                }
+            else {
+                double q = x[s0 + i] - x[s0 + i + tau];
+                e[0] += q * q;
+            }
+        for (int k = 0; k < m; k++, tau++) {
+            int u = tau - 1;
+            run += e[k];
+            d[tau] = run > 0 ? e[k] * tau / run : 1;
+            if (u >= lo && u < hi && d[u] < 0.3 && d[u] <= d[u + 1]) {
+                double a = d[u - 1], b = d[u], cc = d[u + 1], den = a - 2 * b + cc;
+                return (double)sr / (u + (den > 0 ? 0.5 * (a - cc) / den : 0));
+            }
         }
-        run += e;
-        d[tau] = run > 0 ? e * tau / run : 1;
     }
-    for (int tau = lo; tau < hi; tau++)
-        if (d[tau] < 0.3 && d[tau] <= d[tau + 1]) {
-            double a = d[tau - 1], b = d[tau], cc = d[tau + 1], den = a - 2 * b + cc;
-            return (double)sr / (tau + (den > 0 ? 0.5 * (a - cc) / den : 0));
-        }
     return 0;
 }
 
@@ -152,16 +146,18 @@ static double med5(const double *v, int i, int n)
     return w[m / 2];
 }
 
-int main(int argc, char **argv)
+/* The pitch of the recording at wav every 5 ms, frame t centred at
+   (t + 0.5) * 5 ms, its nlab labels ending at ends[] and naming phones[].
+   *frames is how many; the caller frees what it returns. */
+double *pitch_track(const char *wav, int nlab, const double *ends, const char *const *phones, int *frames)
 {
     double *f0, *rms, *tmp, *d;
     int nf, *vc;
 
-    if (argc < 2)
-        fail("usage: pitch IN.wav [IN.lab]");
-    readwav(argv[1]);
-    if (argc > 2)
-        readlab(argv[2]);
+    lend = ends;
+    lph = phones;
+    nlb = nlab;
+    readwav(wav);
     nf = (int)(nx / (sr * HOP));
     f0 = calloc(nf + 1, sizeof *f0);
     rms = calloc(nf + 1, sizeof *rms);
@@ -180,7 +176,7 @@ int main(int argc, char **argv)
             e += v * v;
         }
         rms[t] = sqrt(e / w);
-        f0[t] = voiceless(phone_at(tc)) ? 0 : yin(c, d);
+        f0[t] = voiceless(phone_at(tc)) || rms[t] <= 0.002 ? 0 : yin(c, d);   /* too quiet: 0 whatever yin says */
         vc[t] = f0[t] > 0 && rms[t] > 0.002;
         if (!vc[t])
             f0[t] = 0;
@@ -207,7 +203,60 @@ int main(int argc, char **argv)
             if (m > 0)
                 f0[t] = m;
         }
+    free(x);
+    free(rms);
+    free(tmp);
+    free(vc);
+    free(d);
+    x = 0;
+    *frames = nf;
+    return f0;
+}
+
+#ifdef PITCH_MAIN
+int main(int argc, char **argv)
+{
+    double *ends = 0, *f0;
+    char (*names)[16] = 0;
+    const char **phones;
+    int n = 0, cap = 0, nf;
+
+    if (argc < 2)
+        fail("usage: pitch IN.wav [IN.lab]");
+    if (argc > 2) {
+        FILE *f = fopen(argv[2], "r");
+        char line[128];
+        int body = 0;
+        if (!f)
+            fail("cannot read the labels");
+        while (fgets(line, sizeof line, f)) {
+            double t;
+            int k;
+            char ph[16];
+            if (line[0] == '#') {
+                body = 1;
+                continue;
+            }
+            if (body && sscanf(line, "%lf %d %15s", &t, &k, ph) == 3) {
+                if (n == cap) {
+                    cap = cap ? cap * 2 : 64;
+                    if (!(ends = realloc(ends, sizeof *ends * cap)) || !(names = realloc(names, sizeof *names * cap)))
+                        fail("out of memory");
+                }
+                ends[n] = t;
+                memcpy(names[n], ph, sizeof ph);
+                n++;
+            }
+        }
+        fclose(f);
+    }
+    if (!(phones = malloc(sizeof *phones * (n + 1))))
+        fail("out of memory");
+    for (int i = 0; i < n; i++)
+        phones[i] = names[i];
+    f0 = pitch_track(argv[1], n, ends, phones, &nf);
     for (int t = 0; t < nf; t++)
         printf("%.3f %.1f\n", (t + 0.5) * HOP, f0[t]);
     return 0;
 }
+#endif

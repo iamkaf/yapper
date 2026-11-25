@@ -35,7 +35,8 @@ def table_path():
 
 def build_cli(out, cc=None, flags=("-O2",)):
     cc = cc or os.environ.get("CC", "cc")
-    subprocess.run([cc, "-std=c11", *flags, "-o", str(out), str(ROOT / "cli.c"), str(ROOT / "yapper.c")], check=True)
+    sources = [str(ROOT / name) for name in ("cli.c", "yapper.c", "compile.c", "pitch.c")]
+    subprocess.run([cc, "-std=c11", *flags, "-o", str(out), *sources, "-lm"], check=True)
     return out
 
 

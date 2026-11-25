@@ -14,10 +14,10 @@ Listen to the man's voice saying "Hello there." [from its letters](docs/letters.
 
 ## Try it
 
-The command is `cli.c` and the synthesizer `yapper.c`, both C11 with no dependencies. Build them with GCC or Clang on Linux or macOS:
+The command is `cli.c`, with its phrase compiler in `compile.c` and `pitch.c`, and the synthesizer is `yapper.c`. All are C11 with no dependencies. Build them with GCC or Clang on Linux or macOS:
 
 ```sh
-cc -O2 cli.c yapper.c -o yapper
+cc -O2 cli.c yapper.c compile.c pitch.c -o yapper -lm
 ./yapper say "Hello there. How are you today?" -o hello.wav
 ./yapper say "Is it raining outside?" --voice woman -o rain.wav
 ./yapper say "Come in, base. Over." --set radio=2 -o radio.wav
@@ -27,7 +27,7 @@ cc -O2 cli.c yapper.c -o yapper
 On Windows, build it with MSVC from a Developer Command Prompt:
 
 ```bat
-cl /O2 cli.c yapper.c /Fe:yapper.exe
+cl /O2 cli.c yapper.c compile.c pitch.c /Fe:yapper.exe
 ```
 
 Pre-built binaries for Linux (x86-64 and arm64), macOS and Windows are attached to each [release](https://github.com/iamkaf/yapper/releases).
@@ -124,11 +124,13 @@ cc -O2 tests/bench.c yapper.c -o bench && ./bench
 The letter rules get a lot of English wrong. A phrase table fixes that for the lines you know ahead of time. Put them in a text file, one line of speech per line, and compile it:
 
 ```sh
-python3 compile.py lines.txt -o lines.yph
+./yapper compile lines.txt -o lines.yph
 ./yapper say "Is it raining outside?" --phrases lines.yph -o rain.wav
 ```
 
-`compile.py` needs Python 3, [flite](http://cmuflite.org) and [espeak-ng](https://github.com/espeak-ng/espeak-ng) installed, and a C compiler for `pitch.c`. It splits each line into phrases at punctuation, as the runtime does. For each phrase it records each word's sounds as flite's lexicon says them in context, each sound's length as flite's slt voice says the line, which syllable espeak-ng stresses, and each vowel's pitch, which `pitch.c` reads off flite's recording. The runtime finds a phrase by a hash of its words, so a phrase is said from the table wherever it appears, in any line. Any phrase the table doesn't hold is read from its letters. [FORMAT.md](FORMAT.md) documents the table.
+`yapper compile` needs [flite](http://cmuflite.org) and [espeak-ng](https://github.com/espeak-ng/espeak-ng) installed and on the `PATH`, and runs them as it goes. It splits each line into phrases at punctuation, as the runtime does. For each phrase it records each word's sounds as flite's lexicon says them in context, each sound's length as flite's slt voice says the line, which syllable espeak-ng stresses, and each vowel's pitch, which `pitch.c` reads off flite's recording. The runtime finds a phrase by a hash of its words, so a phrase is said from the table wherever it appears, in any line. Any phrase the table doesn't hold is read from its letters. [FORMAT.md](FORMAT.md) documents the table.
+
+`yapper compile` is the compiler to use. `compile.py` is the Python reference implementation it was written from, and `test.py` checks that the two write the same bytes. `python3 compile.py lines.txt -o lines.yph` makes the same table. Python is needed only for the tests and the reference.
 
 ## How it works
 
@@ -147,7 +149,7 @@ The radio option band-limits the voice to 400 Hz to 3.4 kHz, drives it into a so
 - Gordon Peterson and Harold Barney, "Control methods used in a study of the vowels", JASA 24, 1952: the men's vowel formants.
 - James Hillenbrand et al., "Acoustic characteristics of American English vowels", JASA 97, 1995: the women's vowel formants.
 - Alain de Cheveigné and Hideki Kawahara, "YIN, a fundamental frequency estimator for speech and music", JASA 111, 2002: `pitch.c`.
-- [flite](http://cmuflite.org) and [espeak-ng](https://github.com/espeak-ng/espeak-ng), run by `compile.py` at build time only. Nothing from either is in the runtime.
+- [flite](http://cmuflite.org) and [espeak-ng](https://github.com/espeak-ng/espeak-ng), run by `yapper compile` when a table is built. Nothing from either is in the runtime.
 
 ## Run the tests
 
@@ -159,11 +161,11 @@ The radio option band-limits the voice to 400 Hz to 3.4 kHz, drives it into a so
 - that `yapper.c` compiles with `-ffreestanding -nostdlib` and needs no symbol from outside;
 - the API's promises in `tests/api.c`: the same samples in any chunk size, two voices at once, mixing, hushing, cut-off text, every byte value, and random voices at the extremes;
 - every truncation of a phrase table, every byte of one damaged, thousands of random damages and malformed headers, each in a buffer of exactly its size, and that a malformed record is read from its letters instead;
-- `compile.py` on `tests/lines.txt`, if flite and espeak-ng are installed.
+- that `yapper compile` writes the same bytes as `compile.py` on `tests/lines.txt` and on lines at the compiler's edges, if flite and espeak-ng are installed.
 
 It runs in about 10 seconds. `python3 test.py --bless` writes `tests/blessed.txt` afresh, for a change that is meant to change the sound. `COMPILERS` names the compilers to compare, `gcc clang` by default.
 
-`tests/parity.py` checks Yapper against the code it was taken from, when that code is present. Set `YAPPER_ORIGIN` to the directory holding the original `voice.c`. Every preset, and the radio's three strengths, must give the original's samples exactly, from letters and from a phrase table, along with its text reached and mouth at every 1/60 s. With `YAPPER_ORIGIN_PHRASES` set to the original phrase compiler's output, it also checks that `compile.py` makes the same record for every phrase. Without the original, it skips.
+`tests/parity.py` checks Yapper against the code it was taken from, when that code is present. Set `YAPPER_ORIGIN` to the directory holding the original `voice.c`. Every preset, and the radio's three strengths, must give the original's samples exactly, from letters and from a phrase table, along with its text reached and mouth at every 1/60 s. With `YAPPER_ORIGIN_PHRASES` set to the original phrase compiler's output, it also checks that `compile.py` makes the same record for every phrase, and that `yapper compile` writes the same table as `compile.py` from those lines. Without the original, it skips.
 
 ## Contributing and security
 

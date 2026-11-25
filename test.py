@@ -12,7 +12,9 @@ UndefinedBehaviorSanitizer, using CC (cc by default), and checks:
 - the C API's promises (tests/api.c);
 - truncated, damaged and malformed phrase tables (tests/tables.c), and that a
   malformed record is read from its letters instead;
-- compile.py, if flite and espeak-ng are installed.
+- that `yapper compile` writes the same bytes as compile.py, its reference,
+  on tests/lines.txt and on lines that reach its edges, if flite and
+  espeak-ng are installed.
 
 --bless writes tests/blessed.txt afresh from the sanitized build."""
 import hashlib
@@ -36,6 +38,21 @@ CC = os.environ.get("CC", "cc")
 WARN = ["-std=c11", "-Wall", "-Wextra", "-Werror"]
 SAN = ["-g", "-O1", "-fsanitize=address,undefined", "-fno-sanitize-recover=all", "-fno-omit-frame-pointer"]
 BLESSED = ROOT / "tests" / "blessed.txt"
+# The command's sources, the phrase compiler's among them, and the maths library it needs.
+CLI = [ROOT / "cli.c", ROOT / "yapper.c", ROOT / "compile.c", ROOT / "pitch.c", "-lm"]
+# Lines the table checks say besides common.LINES.
+MORE = ["Hello there.", "hello THERE, hello there"]
+# Lines at the phrase compiler's edges, which the two compilers must agree
+# on: white space Python strips, comments, brackets nested and left open,
+# quotes and apostrophes, the shell's own characters, letters past ASCII, no
+# words at all, breaks str.splitlines() makes and a file's lines don't, and a
+# line past 1024 bytes that cuts a character in two.
+EDGES = ["\ufeffHello there.", "\t Hello there. \u00a0\u3000", "# a comment", "   # another", "",
+         "Well (I [think] so) maybe. And (this never closes", "Don't stop, it's the dog's 'bone'.",
+         "\"Quoted,\" she said; it's Kaf's 'thing'.",
+         "Say $HOME and `echo hi` & more | less > out < in * ~ \\ back\\slash ^ % !",
+         "Caf\u00e9 d\u00e9j\u00e0 vu, a na\u00efve r\u00e9sum\u00e9.", "A. I. Oh!", "42!",
+         "Hello\u2028there, form\x0cfeed.", "word " * 204 + "abc\u20ac and more"]
 TABLE = common.table_path()
 tmp = Path(tempfile.mkdtemp(prefix="yapper-test-"))
 
@@ -94,7 +111,7 @@ def blessed():
 
 
 def check_renders():
-    yapper = cc(tmp / "yapper-san", [ROOT / "cli.c", ROOT / "yapper.c"], SAN)
+    yapper = cc(tmp / "yapper-san", CLI, SAN)
     got = renders(yapper, "san")
     for name, _, timeline, total, line in got:
         sane(name, timeline, total, line)
@@ -111,7 +128,7 @@ def check_renders():
             print(f"renders: {compiler} is not installed, skipped")
             continue
         for opt in ("-O0", "-O2"):
-            exe = cc(tmp / f"yapper-{compiler}{opt}", [ROOT / "cli.c", ROOT / "yapper.c"], [opt], compiler)
+            exe = cc(tmp / f"yapper-{compiler}{opt}", CLI, [opt], compiler)
             for name, h, *_ in renders(exe, f"{compiler}{opt}"):
                 assert want[name] == h, f"{name}: {compiler} {opt} differs"
             built.append(f"{compiler} {opt}")
@@ -189,7 +206,7 @@ def check_tables(yapper):
         case(make_table({h: rec}), 0)
     cases_file, lines_file = tmp / "cases.bin", tmp / "lines.txt"
     cases_file.write_bytes(out)
-    lines_file.write_text("\n".join(common.LINES + ["Hello there.", "hello THERE, hello there"]) + "\n")
+    lines_file.write_text("\n".join(common.LINES + MORE) + "\n")
     exe = cc(tmp / "tables", [ROOT / "tests" / "tables.c", ROOT / "yapper.c"], SAN)
     print(common.run([exe, cases_file, lines_file]).strip())
     letters, _, _ = common.say(yapper, "Hello there.", [], tmp)
@@ -201,22 +218,40 @@ def check_tables(yapper):
     print(f"tables: {len(records)} malformed records each read from letters instead")
 
 
-def check_compiler():
+def check_compiler(yapper):
     if not (shutil.which("flite") and shutil.which("espeak-ng")):
-        print("compile.py: skipped (flite and espeak-ng are not both installed)")
+        print("compile: skipped (flite and espeak-ng are not both installed)")
         return
-    out = tmp / "lines.yph"
-    common.run([sys.executable, ROOT / "compile.py", ROOT / "tests" / "lines.txt", "-o", out])
-    data = out.read_bytes()
+    # The edges with every way a file can end its lines: "\n", "\r\n" and "\r".
+    edges = tmp / "edges.txt"
+    lines = common.LINES + MORE + EDGES
+    edges.write_bytes(("\n".join(lines[:10]) + "\r\n" + "\r".join(lines[10:14]) + "\r\n"
+                       + "\n".join(lines[14:]) + "\n").encode())
+    jobs = [(src, how) for src in (ROOT / "tests" / "lines.txt", edges) for how in ("py", "c")]
+
+    def compile_with(job):
+        src, how = job
+        out = tmp / f"{src.stem}-{how}.yph"
+        common.run([sys.executable, ROOT / "compile.py", src, "-o", out] if how == "py" else
+                   [yapper, "compile", src, "-o", out])
+        return out.read_bytes()
+
+    with ThreadPoolExecutor(len(jobs)) as ex:
+        got = dict(zip(jobs, ex.map(compile_with, jobs)))
+    data = got[ROOT / "tests" / "lines.txt", "py"]
     records = parse(data)
     wanted = {fnv(b" ".join(bytes(c | 32 if 65 <= c <= 90 else c for c in page[a:b] if c != 39) for a, b in words))
               for page in map(blank, common.LINES) for words in phrases(page) if words}
     assert set(records) == wanted, "compile.py left out a phrase, or added one"
     assert make_table(records) == data, "compile.py's table is not laid out as FORMAT.md says"
+    phrases_in = 0
+    for src in (ROOT / "tests" / "lines.txt", edges):
+        assert got[src, "c"] == got[src, "py"], f"yapper compile and compile.py differ on {src.name}"
+        phrases_in += len(parse(got[src, "c"]))
     same = data == TABLE.read_bytes()
-    print(f"compile.py: {len(records)} phrases, every one well made"
+    print(f"compile: yapper compile and compile.py wrote the same tables, {phrases_in} phrases in all"
           + ("; identical to tests/lines.yph" if same else
-             "; differs from tests/lines.yph (another version of flite or espeak-ng?)"))
+             "; they differ from tests/lines.yph (another version of flite or espeak-ng?)"))
 
 
 from compile import blank, phrases  # noqa: E402
@@ -228,7 +263,7 @@ def main():
         check_freestanding()
         check_api()
         check_tables(yapper)
-        check_compiler()
+        check_compiler(yapper)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     print("all passed")

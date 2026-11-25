@@ -2,6 +2,9 @@
 
     python3 compile.py LINES.txt -o TABLE.yph
 
+This is the reference implementation of `yapper compile` (compile.c), which
+is the compiler to use: test.py checks that the two write the same bytes.
+
 LINES.txt holds one line of speech a line, UTF-8; blank lines and lines
 that start with "#" are skipped. Each line is split into phrases at
 , . ; : ! ? as the runtime splits it, and each phrase gets a record: its
@@ -11,8 +14,8 @@ It runs two speech programs, which it needs installed and which never ship
 with the runtime: flite says the whole line in its slt voice, and gives
 each word's sounds as its lexicon says them in context, and each sound's
 length; espeak-ng says which syllable of each word is stressed. pitch.c,
-built here with the C compiler (CC, or cc), reads each vowel's pitch off
-flite's recording."""
+built here with the C compiler (CC, or cc) and -DPITCH_MAIN, reads each
+vowel's pitch off flite's recording."""
 import argparse
 import difflib
 import math
@@ -106,7 +109,7 @@ def build_pitch(tmp):
         if not shutil.which(t):
             raise Bad(f"{t} is not installed")
     exe = Path(tmp) / "pitch"
-    subprocess.run([os.environ.get("CC", "cc"), "-std=c11", "-O2", "-o", str(exe), str(HERE / "pitch.c"), "-lm"],
+    subprocess.run([os.environ.get("CC", "cc"), "-std=c11", "-O2", "-DPITCH_MAIN", "-o", str(exe), str(HERE / "pitch.c"), "-lm"],
                    check=True)
     return exe
 
