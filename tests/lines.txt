@@ -1,0 +1,8 @@
+# The lines the tests say, compiled to tests/lines.yph by compile.py.
+Hello there. How are you today?
+The quick brown fox jumps over the lazy dog.
+Is it raining outside? Bring an umbrella, just in case.
+...Well. I suppose we could try again; nothing else has worked.
+(quietly) Keep your voice down. [pause] They're listening.
+Room 42 costs $90 a night, which isn't cheap!
+Why would anyone build a whole speech synthesizer that fits in a few kilobytes? Because it's fun, and because small things travel well. Shall we listen to it again?
