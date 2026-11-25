@@ -1,4 +1,4 @@
-<p align="center"><img alt="Yapper: a speech waveform drawn in red ink on chart paper, with the words hello, there, how are you under it" src="docs/banner.png"></p>
+<p align="center"><img alt="Yapper: a speech waveform drawn in red ink on chart paper, with the words hello, there, how are you under it" src=".github/banner.png"></p>
 
 <p align="center">
   <a href="https://github.com/iamkaf/yapper/actions/workflows/ci.yml"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/github/ci/iamkaf/yapper.svg?workflow=ci.yml&amp;branch=main&amp;variant=outline&amp;size=sm&amp;font=geist&amp;mode=dark"><img alt="CI status" src="https://shieldcn.dev/github/ci/iamkaf/yapper.svg?workflow=ci.yml&amp;branch=main&amp;variant=outline&amp;size=sm&amp;font=geist&amp;mode=light"></picture></a>
