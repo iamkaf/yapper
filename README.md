@@ -1,4 +1,10 @@
-<!-- banner -->
+<p align="center"><img alt="Yapper: a speech waveform drawn in red ink on chart paper, with the words hello, there, how are you under it" src="docs/banner.png"></p>
+
+<p align="center">
+  <a href="https://github.com/iamkaf/yapper/actions/workflows/ci.yml"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/github/ci/iamkaf/yapper.svg?workflow=ci.yml&amp;branch=main&amp;variant=outline&amp;size=sm&amp;font=geist&amp;mode=dark"><img alt="CI status" src="https://shieldcn.dev/github/ci/iamkaf/yapper.svg?workflow=ci.yml&amp;branch=main&amp;variant=outline&amp;size=sm&amp;font=geist&amp;mode=light"></picture></a>
+  <a href="https://github.com/iamkaf/yapper/releases"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/github/release/iamkaf/yapper.svg?variant=outline&amp;size=sm&amp;font=geist&amp;mode=dark"><img alt="Latest release" src="https://shieldcn.dev/github/release/iamkaf/yapper.svg?variant=outline&amp;size=sm&amp;font=geist&amp;mode=light"></picture></a>
+  <a href="LICENSE"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/license-MIT.svg?variant=outline&amp;size=sm&amp;font=geist&amp;mode=dark"><img alt="MIT license" src="https://shieldcn.dev/badge/license-MIT.svg?variant=outline&amp;size=sm&amp;font=geist&amp;mode=light"></picture></a>
+</p>
 
 Yapper is a tiny speech synthesizer in freestanding C. Give it text, and it gives back 44.1 kHz audio, how far through the text the voice has got, and whether the mouth is open. A game can type out dialogue in step with the voice and move a portrait's mouth on each vowel. It uses only integer math, so the same text gives the same samples on every machine. It needs no C library, never allocates, and compiles to about 9 KB of code and tables.
 
